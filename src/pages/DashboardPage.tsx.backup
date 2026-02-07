@@ -1,0 +1,321 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Layout } from '../components/Layout'
+
+interface Prescription {
+  id: string
+  type: 'simple' | 'special_control'
+  instructions: string
+  pdfUrl: string
+  createdAt: string
+  patient: {
+    name: string
+    cpf: string
+  }
+}
+
+export function DashboardPage() {
+  const navigate = useNavigate()
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [filteredPrescriptions, setFilteredPrescriptions] = useState<Prescription[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [stats, setStats] = useState({
+    todayCount: 0,
+    activePatients: 0,
+    specialControlCount: 0
+  })
+
+  useEffect(() => {
+    const fetchPrescriptions = async () => {
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        setError('Não autenticado')
+        setLoading(false)
+        return
+      }
+
+      try {
+        const res = await fetch('/api/prescriptions', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!res.ok) {
+          throw new Error('Falha ao buscar receitas')
+        }
+
+        const data = await res.json()
+        setPrescriptions(data)
+        setFilteredPrescriptions(data)
+        
+        // Calcular estatísticas
+        const today = new Date().toDateString()
+        const todayPrescriptions = data.filter((rx: Prescription) => 
+          new Date(rx.createdAt).toDateString() === today
+        )
+        
+        const specialControl = data.filter((rx: Prescription) => 
+          rx.type === 'special_control'
+        )
+        
+        // Contar pacientes únicos
+        const uniquePatients = new Set(data.map((rx: Prescription) => rx.patient.cpf))
+        
+        setStats({
+          todayCount: todayPrescriptions.length,
+          activePatients: uniquePatients.size,
+          specialControlCount: specialControl.length
+        })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erro desconhecido')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrescriptions()
+  }, [])
+
+  // Efeito para filtrar receitas baseado no termo de busca
+  useEffect(() => {
+    const filtered = prescriptions.filter(rx =>
+      rx.patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rx.patient.cpf.includes(searchTerm)
+    )
+    setFilteredPrescriptions(filtered)
+  }, [prescriptions, searchTerm])
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+  }
+
+  const logout = () => {
+    localStorage.removeItem('auth_token')
+    window.dispatchEvent(new Event('auth_changed'))
+    navigate('/login', { replace: true })
+  }
+
+  const goToPatients = () => {
+    navigate('/pacientes')
+  }
+
+  const goToNewPrescription = () => {
+    navigate('/receitas/nova')
+  }
+
+  const onView = (id: string) => {
+    navigate(`/receitas/${id}`)
+  }
+
+  const onEdit = (id: string) => {
+    navigate(`/receitas/${id}/editar`)
+  }
+
+  const onReprint = (id: string) => {
+    window.alert(`Reimprimir receita ${id} (ainda não implementado).`)
+  }
+
+  return (
+    <Layout>
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold">R</span>
+                  </div>
+                  <h1 className="ml-3 text-xl font-semibold text-gray-900">Receit Médico</h1>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button className="p-2 text-gray-400 hover:text-gray-500">
+                  <svg width="24" height="24" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="card p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <svg width="24" height="24" className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Receitas Hoje</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.todayCount}</p>
+                <p className="text-xs text-green-600 mt-1">Hoje</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <svg width="24" height="24" className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Pacientes Ativos</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.activePatients}</p>
+                <p className="text-xs text-green-600 mt-1">Total</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                  <svg width="24" height="24" className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Controle Especial</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.specialControlCount}</p>
+                <p className="text-xs text-gray-500 mt-1">Total</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Prescriptions */}
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Receitas Recentes</h3>
+              <button className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                Ver todas
+              </button>
+            </div>
+            
+            {/* Campo de Busca */}
+            <div className="mb-4">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Buscar por nome do paciente ou CPF..."
+                />
+              </div>
+              {searchTerm && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Mostrando {filteredPrescriptions.length} de {prescriptions.length} receitas
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="overflow-hidden">
+            {loading ? (
+              <div className="px-6 py-8 text-center text-gray-500">Carregando...</div>
+            ) : error ? (
+              <div className="px-6 py-8 text-center text-red-500">{error}</div>
+            ) : filteredPrescriptions.length === 0 ? (
+              <div className="px-6 py-8 text-center text-gray-500">
+                {searchTerm ? 'Nenhuma receita encontrada para esta busca.' : 'Nenhuma receita encontrada.'}
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Paciente
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tipo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Data
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredPrescriptions.map((rx) => (
+                    <tr key={rx.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-gray-300 rounded-full mr-3"></div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{rx.patient.name}</div>
+                            <div className="text-sm text-gray-500">CPF: {rx.patient.cpf}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            rx.type === 'simple'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {rx.type === 'simple' ? 'Simples' : 'Controle Especial'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(rx.createdAt).toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                          Ativa
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          type="button"
+                          className="text-blue-600 hover:text-blue-900 mr-3"
+                          onClick={() => onView(rx.id)}
+                        >
+                          Visualizar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-yellow-600 hover:text-yellow-900 mr-3"
+                          onClick={() => onEdit(rx.id)}
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="text-green-600 hover:text-green-900"
+                          onClick={() => onReprint(rx.id)}
+                        >
+                          Reimprimir
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </Layout>
+  )
+}
