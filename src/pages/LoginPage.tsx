@@ -40,7 +40,7 @@ export function LoginPage() {
       }
 
       localStorage.setItem('auth_token', data.token)
-      localStorage.setItem('auth_user', JSON.stringify(data.user ?? null))
+      localStorage.setItem('user_profile', JSON.stringify(data.user ?? null))
       window.dispatchEvent(new Event('auth_changed'))
       navigate('/', { replace: true })
     } catch {
