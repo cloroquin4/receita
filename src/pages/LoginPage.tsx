@@ -7,6 +7,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '')
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -18,7 +19,7 @@ export function LoginPage() {
     try {
       setLoading(true)
 
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
